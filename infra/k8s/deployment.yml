@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: market-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: market-dashboard
+  template:
+    metadata:
+      labels:
+        app: market-dashboard
+    spec:
+      containers:
+        - name: api
+          image: your-registry/market-api:latest
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: market-secrets
+                  key: DATABASE_URL
+          ports:
+            - containerPort: 8000
+        - name: ingest-news
+          image: your-registry/ingest-news:latest
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: market-secrets
+                  key: DATABASE_URL
+            - name: NEWS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: market-secrets
+                  key: NEWS_API_KEY
+        - name: ingest-prices
+          image: your-registry/ingest-prices:latest
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: market-secrets
+                  key: DATABASE_URL
+            - name: FINNHUB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: market-secrets
+                  key: FINNHUB_API_KEY
+            - name: POLYGON_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: market-secrets
+                  key: POLYGON_API_KEY
+        - name: web
+          image: your-registry/market-web:latest
+          env:
+            - name: NEXT_PUBLIC_API_BASE_URL
+              value: "http://market-dashboard:8000"
+          ports:
+            - containerPort: 3000
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: market-dashboard
+spec:
+  selector:
+    app: market-dashboard
+  ports:
+    - name: api
+      port: 8000
+      targetPort: 8000
+    - name: web
+      port: 80
+      targetPort: 3000
+  type: ClusterIP
