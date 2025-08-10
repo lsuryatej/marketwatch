@@ -25,6 +25,16 @@ DATABASE_URL = os.getenv("DATABASE_URL") or "postgresql://postgres:postgres@data
 app = FastAPI(title="Market Intelligence API", version="0.1.0")
 
 
+def _parse_iso8601(value: str) -> dt.datetime:
+    """Parse an ISO8601 timestamp string.
+
+    Python's ``datetime.fromisoformat`` does not handle the "Z" suffix that many
+    APIs use to denote UTC.  This helper accepts such values by translating the
+    suffix to ``+00:00`` before parsing.
+    """
+    return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
 @app.on_event("startup")
 async def startup_event():
     # Create a connection pool to the database
@@ -58,11 +68,11 @@ async def company_history(ticker: str, start: Optional[str] = None, end: Optiona
     """
     # Parse dates
     try:
-        end_dt = dt.datetime.fromisoformat(end) if end else dt.datetime.utcnow()
+        end_dt = _parse_iso8601(end) if end else dt.datetime.utcnow()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid end date format")
     try:
-        start_dt = dt.datetime.fromisoformat(start) if start else end_dt - dt.timedelta(days=7)
+        start_dt = _parse_iso8601(start) if start else end_dt - dt.timedelta(days=7)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid start date format")
     if start_dt >= end_dt:
