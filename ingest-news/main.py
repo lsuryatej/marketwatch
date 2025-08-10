@@ -51,6 +51,11 @@ def connect_db():
     return psycopg2.connect(DATABASE_URL)
 
 
+def _parse_iso8601(value: str) -> dt.datetime:
+    """Parse an ISO8601 timestamp string, supporting a trailing 'Z'."""
+    return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
 class CompanyCache:
     """A simple in‑memory cache for ticker → company_id lookups."""
 
@@ -206,7 +211,12 @@ def fetch_and_process_news(conn, model=None, tokenizer=None) -> List[Dict[str, A
         tickers = extract_tickers(text)
         if not tickers:
             continue
-        timestamp = dt.datetime.fromisoformat(article.get("publishedAt", dt.datetime.utcnow().isoformat()))
+        published_at = article.get("publishedAt")
+        try:
+            timestamp = _parse_iso8601(published_at) if published_at else dt.datetime.utcnow()
+        except Exception:
+            logger.warning(f"Unable to parse publishedAt value: {published_at!r}")
+            timestamp = dt.datetime.utcnow()
         s_score, pos, neu, neg = infer_sentiment(model, tokenizer, text)
         items.append(
             {
